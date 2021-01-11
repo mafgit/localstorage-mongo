@@ -33,7 +33,7 @@ function _iterableToArrayLimit(arr, i) { if (typeof Symbol === "undefined" || !(
 
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
-// TODO: Enum, minlength, maxlength, match, ref
+// TODO: minlength, maxlength, match, ref, min, max
 
 /**
  * Creates a model
@@ -48,6 +48,7 @@ function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
  */
 var useLocalMongo = function useLocalMongo(storeName) {
   var schema = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  if (!storeName) throw new Error('Store Name is required');
 
   var _useState = (0, _react.useState)(window.localStorage.getItem(storeName)),
       _useState2 = _slicedToArray(_useState, 1),
@@ -55,43 +56,84 @@ var useLocalMongo = function useLocalMongo(storeName) {
 
   var _useState3 = (0, _react.useState)(value ? JSON.parse(value) : []),
       _useState4 = _slicedToArray(_useState3, 2),
-      parsedValue = _useState4[0],
-      setParsedValue = _useState4[1];
+      documents = _useState4[0],
+      setDocuments = _useState4[1];
 
   if (!value) {
     window.localStorage.setItem(storeName, '[]');
   }
 
-  var filterPropsAndCheckTypes = function filterPropsAndCheckTypes(newValue) {
-    var filtered = {};
-    var error;
-    Object.keys(schema).forEach(function (prop) {
-      if (!newValue[prop] && schema[prop].required === true) {
-        error = new Error("".concat(storeName, ": \"").concat(prop, "\" is required"));
-        return {
-          error: error
-        };
-      }
-
-      if (newValue[prop].constructor.name !== schema[prop].type) {
-        error = Error("".concat(storeName, ": type of \"").concat(prop, "\" must be ").concat(schema[prop].type));
-        return {
-          error: error
-        };
-      } else if (!newValue[prop] && schema[prop]["default"]) {
-        filtered[prop] = schema[prop]["default"];
-      } else {
-        filtered[prop] = newValue[prop];
-      }
-    });
-    return {
-      error: error,
-      filtered: filtered
+  var validateEnum = function validateEnum(newValue, prop, storeName) {
+    if (!schema[prop]["enum"].includes(newValue[prop])) return {
+      error: "".concat(storeName, ": value: \"").concat(newValue[prop], "\" for property: \"").concat(prop, "\" doesn't pass the enum validation")
     };
   };
 
+  var validateUniqueness = function validateUniqueness(newValue, prop, storeName) {
+    if (documents.find(function (v) {
+      return v[prop] === newValue[prop];
+    })) {
+      return {
+        error: "".concat(storeName, ": document with value: \"").concat(newValue[prop], "\" for property \"").concat(prop, "\" already exists, it must be unique")
+      };
+    }
+  };
+
+  var validateRequired = function validateRequired(newValue, prop, storeName) {
+    if (!newValue[prop]) return {
+      error: "".concat(storeName, ": \"").concat(prop, "\" is required")
+    };
+  };
+
+  var validateType = function validateType(newValue, prop, storeName) {
+    if (newValue[prop].constructor.name !== schema[prop].type) return {
+      error: "".concat(storeName, ": type of \"").concat(prop, "\" must be ").concat(schema[prop].type)
+    };
+  };
+
+  var validate = function validate(newValue) {
+    return new Promise(function (resolve, reject) {
+      var filtered = {};
+      Object.keys(schema).forEach(function (prop) {
+        // checking "required"
+        if (schema[prop].required === true) {
+          var error = validateRequired(newValue, prop, storeName);
+          if (error) return reject(error);
+        } // checking "type"
+
+
+        if (['String', 'Array', 'Boolean', 'Number', 'Object'].includes(schema[prop].type)) {
+          var _error = validateType(newValue, prop, storeName);
+
+          if (_error) return reject(_error);
+        } // checking "unique"
+
+
+        if (schema[prop].unique === true) {
+          var _error2 = validateUniqueness(newValue, prop, storeName);
+
+          if (_error2) return reject(_error2);
+        } // checking "enum"
+
+
+        if (Array.isArray(schema[prop]["enum"])) {
+          var _error3 = validateEnum(newValue, prop, storeName);
+
+          if (_error3) return reject(_error3);
+        }
+
+        if (!newValue[prop] && schema[prop]["default"]) {
+          filtered[prop] = schema[prop]["default"];
+        } else {
+          filtered[prop] = newValue[prop];
+        }
+      });
+      return resolve(filtered);
+    });
+  };
+
   var setLS = function setLS(newValue) {
-    setParsedValue(newValue);
+    setDocuments(newValue);
     window.localStorage.setItem(storeName, JSON.stringify(newValue));
   };
 
@@ -100,7 +142,7 @@ var useLocalMongo = function useLocalMongo(storeName) {
   };
 
   var genUniqueId = function genUniqueId() {
-    var ids = parsedValue.map(function (i) {
+    var ids = documents.map(function (i) {
       return i._id;
     });
 
@@ -114,23 +156,32 @@ var useLocalMongo = function useLocalMongo(storeName) {
   };
 
   var create = function create(newValue) {
-    return new Promise(function (res, rej) {
-      var _filterPropsAndCheckT = filterPropsAndCheckTypes(newValue),
-          filtered = _filterPropsAndCheckT.filtered,
-          error = _filterPropsAndCheckT.error;
+    // If no schema:
+    if (Object.keys(schema).length === 0) {
+      var _id = genUniqueId();
 
-      if (!error) {
-        var _id = genUniqueId();
-
-        setLS([].concat(_toConsumableArray(parsedValue), [_objectSpread(_objectSpread({}, filtered), {}, {
-          _id: _id
-        })]));
-        return res(_objectSpread(_objectSpread({}, filtered), {}, {
+      setLS([].concat(_toConsumableArray(documents), [_objectSpread(_objectSpread({}, newValue), {}, {
+        _id: _id
+      })]));
+      return new Promise(function (resolve) {
+        return resolve(_objectSpread(_objectSpread({}, newValue), {}, {
           _id: _id
         }));
-      } else {
-        return rej(error);
-      }
+      });
+    } // If there is schema:
+
+
+    return validate(newValue).then(function (filtered) {
+      var _id = genUniqueId();
+
+      setLS([].concat(_toConsumableArray(documents), [_objectSpread(_objectSpread({}, filtered), {}, {
+        _id: _id
+      })]));
+      return Promise.resolve(_objectSpread(_objectSpread({}, filtered), {}, {
+        _id: _id
+      }));
+    })["catch"](function (err) {
+      return Promise.reject(err);
     });
   };
   /**
@@ -146,24 +197,22 @@ var useLocalMongo = function useLocalMongo(storeName) {
 
   var findByIdAndUpdate = function findByIdAndUpdate(_id, cb) {
     return new Promise(function (res, rej) {
-      var doc = parsedValue.find(function (v) {
+      var doc = documents.find(function (v) {
         return v._id === _id;
       });
       var updated = cb(doc);
-
-      var _filterPropsAndCheckT2 = filterPropsAndCheckTypes(updated),
-          error = _filterPropsAndCheckT2.error,
-          filtered = _filterPropsAndCheckT2.filtered;
-
-      if (error) return rej(error);
-      setLS(parsedValue.map(function (v) {
-        return v._id !== _id ? v : _objectSpread(_objectSpread({}, filtered), {}, {
+      validate(updated).then(function (filtered) {
+        setLS(documents.map(function (v) {
+          return v._id !== _id ? v : _objectSpread(_objectSpread({}, filtered), {}, {
+            _id: _id
+          });
+        }));
+        return res(_objectSpread(_objectSpread({}, filtered), {}, {
           _id: _id
-        });
-      }));
-      return res(_objectSpread(_objectSpread({}, filtered), {}, {
-        _id: _id
-      }));
+        }));
+      })["catch"](function (err) {
+        return rej(err);
+      });
     });
   };
   /**
@@ -174,7 +223,7 @@ var useLocalMongo = function useLocalMongo(storeName) {
 
   var findByIdAndDelete = function findByIdAndDelete(_id) {
     return new Promise(function (res, _rej) {
-      setLS(parsedValue.filter(function (v) {
+      setLS(documents.filter(function (v) {
         return v._id !== _id;
       }));
       return res('deleted');
@@ -182,7 +231,7 @@ var useLocalMongo = function useLocalMongo(storeName) {
   };
 
   return {
-    value: parsedValue,
+    docs: documents,
     create: create,
     setDangerously: setLS,
     findByIdAndUpdate: findByIdAndUpdate,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// TODO: Enum, minlength, maxlength, match, ref
+// TODO: minlength, maxlength, match, ref, min, max
 
 /**
  * Creates a model
@@ -14,37 +14,78 @@ import { useState } from 'react'
  * @returns {Object} Model
  */
 const useLocalMongo = (storeName, schema = {}) => {
+  if (!storeName) throw new Error('Store Name is required')
   const [value] = useState(window.localStorage.getItem(storeName))
-  const [parsedValue, setParsedValue] = useState(value ? JSON.parse(value) : [])
+  const [documents, setDocuments] = useState(value ? JSON.parse(value) : [])
 
   if (!value) {
     window.localStorage.setItem(storeName, '[]')
   }
 
-  const filterPropsAndCheckTypes = (newValue) => {
-    const filtered = {}
-    let error
-    Object.keys(schema).forEach((prop) => {
-      if (!newValue[prop] && schema[prop].required === true) {
-        error = new Error(`${storeName}: "${prop}" is required`)
-        return { error }
+  const validateEnum = (newValue, prop, storeName) => {
+    if (!schema[prop].enum.includes(newValue[prop]))
+      return {
+        error: `${storeName}: value: "${newValue[prop]}" for property: "${prop}" doesn't pass the enum validation`,
       }
-      if (newValue[prop].constructor.name !== schema[prop].type) {
-        error = Error(
-          `${storeName}: type of "${prop}" must be ${schema[prop].type}`
-        )
-        return { error }
-      } else if (!newValue[prop] && schema[prop].default) {
-        filtered[prop] = schema[prop].default
-      } else {
-        filtered[prop] = newValue[prop]
+  }
+  const validateUniqueness = (newValue, prop, storeName) => {
+    if (documents.find((v) => v[prop] === newValue[prop])) {
+      return {
+        error: `${storeName}: document with value: "${newValue[prop]}" for property "${prop}" already exists, it must be unique`,
       }
+    }
+  }
+  const validateRequired = (newValue, prop, storeName) => {
+    if (!newValue[prop]) return { error: `${storeName}: "${prop}" is required` }
+  }
+  const validateType = (newValue, prop, storeName) => {
+    if (newValue[prop].constructor.name !== schema[prop].type)
+      return {
+        error: `${storeName}: type of "${prop}" must be ${schema[prop].type}`,
+      }
+  }
+
+  const validate = (newValue) => {
+    return new Promise((resolve, reject) => {
+      const filtered = {}
+      Object.keys(schema).forEach((prop) => {
+        // checking "required"
+        if (schema[prop].required === true) {
+          let error = validateRequired(newValue, prop, storeName)
+          if (error) return reject(error)
+        }
+        // checking "type"
+        if (
+          ['String', 'Array', 'Boolean', 'Number', 'Object'].includes(
+            schema[prop].type
+          )
+        ) {
+          let error = validateType(newValue, prop, storeName)
+          if (error) return reject(error)
+        }
+        // checking "unique"
+        if (schema[prop].unique === true) {
+          let error = validateUniqueness(newValue, prop, storeName)
+          if (error) return reject(error)
+        }
+        // checking "enum"
+        if (Array.isArray(schema[prop].enum)) {
+          let error = validateEnum(newValue, prop, storeName)
+          if (error) return reject(error)
+        }
+        if (!newValue[prop] && schema[prop].default) {
+          filtered[prop] = schema[prop].default
+        } else {
+          filtered[prop] = newValue[prop]
+        }
+      })
+
+      return resolve(filtered)
     })
-    return { error, filtered }
   }
 
   const setLS = (newValue) => {
-    setParsedValue(newValue)
+    setDocuments(newValue)
     window.localStorage.setItem(storeName, JSON.stringify(newValue))
   }
 
@@ -52,7 +93,7 @@ const useLocalMongo = (storeName, schema = {}) => {
     (Math.random() * Math.random()).toString().replace('.', '')
 
   const genUniqueId = () => {
-    const ids = parsedValue.map((i) => i._id)
+    const ids = documents.map((i) => i._id)
     let _id = genId()
     while (ids.includes(_id)) {
       _id = genId()
@@ -60,17 +101,22 @@ const useLocalMongo = (storeName, schema = {}) => {
     return _id
   }
 
-  const create = (newValue) =>
-    new Promise((res, rej) => {
-      const { filtered, error } = filterPropsAndCheckTypes(newValue)
-      if (!error) {
+  const create = (newValue) => {
+    // If no schema:
+    if (Object.keys(schema).length === 0) {
+      const _id = genUniqueId()
+      setLS([...documents, { ...newValue, _id }])
+      return new Promise((resolve) => resolve({ ...newValue, _id }))
+    }
+    // If there is schema:
+    return validate(newValue)
+      .then((filtered) => {
         const _id = genUniqueId()
-        setLS([...parsedValue, { ...filtered, _id }])
-        return res({ ...filtered, _id })
-      } else {
-        return rej(error)
-      }
-    })
+        setLS([...documents, { ...filtered, _id }])
+        return Promise.resolve({ ...filtered, _id })
+      })
+      .catch((err) => Promise.reject(err))
+  }
 
   /**
    * Updates a single document
@@ -83,12 +129,16 @@ const useLocalMongo = (storeName, schema = {}) => {
    */
   const findByIdAndUpdate = (_id, cb) => {
     return new Promise((res, rej) => {
-      const doc = parsedValue.find((v) => v._id === _id)
+      const doc = documents.find((v) => v._id === _id)
       const updated = cb(doc)
-      const { error, filtered } = filterPropsAndCheckTypes(updated)
-      if (error) return rej(error)
-      setLS(parsedValue.map((v) => (v._id !== _id ? v : { ...filtered, _id })))
-      return res({ ...filtered, _id })
+      validate(updated)
+        .then((filtered) => {
+          setLS(
+            documents.map((v) => (v._id !== _id ? v : { ...filtered, _id }))
+          )
+          return res({ ...filtered, _id })
+        })
+        .catch((err) => rej(err))
     })
   }
 
@@ -98,13 +148,13 @@ const useLocalMongo = (storeName, schema = {}) => {
    */
   const findByIdAndDelete = (_id) => {
     return new Promise((res, _rej) => {
-      setLS(parsedValue.filter((v) => v._id !== _id))
+      setLS(documents.filter((v) => v._id !== _id))
       return res('deleted')
     })
   }
 
   return {
-    value: parsedValue,
+    docs: documents,
     create,
     setDangerously: setLS,
     findByIdAndUpdate,
