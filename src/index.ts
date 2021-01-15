@@ -23,7 +23,7 @@ const useLocalMongo = (
     timestamps: false,
     id: true,
   }
-): {} => {
+) => {
   if (!storeName) throw new Error('Store Name is required')
   if (typeof options.timestamps === 'undefined') options.timestamps = false
   if (typeof options.id === 'undefined') options.id = true
