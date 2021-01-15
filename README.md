@@ -52,7 +52,7 @@ You can make a property required or set a default value for it. There are a few 
 - `enum`: can be provided for a property with type string, it checks whether the value is in the array provided. Example: `{ status: { enum: ['pending', 'delivered'] } }`
 - `unique`: can be provided for a property to ensure that it stays unique through out the store.
 - `required`: to ensure that the value must be provided for a property.
-- `default`: this is a fallback value for the property that is not provided.
+- `default`: this is a fallback value for the property that isn't required, and isn't provided.
 <!-- TODO: Add More Validations -->
 
 #### Options
@@ -66,7 +66,7 @@ User.docs // [{...}, {...}]
 ```
 
 ## Creating a new document
-#### `Model.create(document)`
+### `Model.create(document)`
 ```ts
 User.create({ name: 'maf' })
   .then(user => console.log(user))
@@ -88,6 +88,7 @@ User.findByIdAndUpdate(_id, (user) => {
 ```
 You can access the document in the callback function, and return the updated document in the callback.
 
+#### Replacing a document
 Don't spread the previous document, inside callback, if you want to replace it instead of updating, validations would still apply.
 
 

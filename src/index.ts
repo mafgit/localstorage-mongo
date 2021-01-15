@@ -37,6 +37,8 @@ const useLocalMongo = (
     window.localStorage.setItem(storeName, '[]')
   }
 
+  const isSchemaLess = (): boolean => Object.keys(schema).length === 0
+
   const validateEnum = (doc: Doc, prop: string) => {
     if (!schema[prop].enum!.includes(doc[prop]))
       return `Value: '${doc[prop]}' for property: '${prop}' doesn't pass the enum validation.`
@@ -51,7 +53,7 @@ const useLocalMongo = (
   }
   const validateType = (doc: Doc, prop: string) => {
     if (doc[prop].constructor.name !== schema[prop].type)
-      return `Type of '${prop}' must be ${schema[prop].type}, not ${doc[prop].constructor.name}.`
+      return `Type of '${prop}' must be '${schema[prop].type}', '${doc[prop].constructor.name}' provided.`
   }
 
   const validate = (doc: Doc) =>
@@ -90,11 +92,10 @@ const useLocalMongo = (
           filtered[prop] = doc[prop]
         }
       })
+
       const checkIfAnyProp = Object.keys(filtered).filter(
         (i) => !i.match(/^[createdAt|updatedAt|_id]$/)
       )
-      console.log('check', checkIfAnyProp)
-      console.log('filtered', filtered)
 
       if (checkIfAnyProp.length === 0)
         return reject('No field that is mentioned in the schema is provided.')
@@ -125,11 +126,16 @@ const useLocalMongo = (
   }
 
   const create = (doc: {}): Promise<any> => {
-    if (!doc) return Promise.reject('Please provide an object with properties')
+    if (!doc)
+      return Promise.reject(
+        `\nStore: '${storeName}'\nDocument not provided to the create function.`
+      )
     if (Object.keys(doc).length === 0)
-      return Promise.reject('Please provide an object with properties')
+      return Promise.reject(
+        `\nStore: '${storeName}'\nDocument provided to the function is empty.`
+      )
     // If no schema:
-    if (Object.keys(schema).length === 0) {
+    if (isSchemaLess()) {
       return new Promise((resolve) => {
         const newDoc: Doc = { ...doc }
         if (options.id === true) {
@@ -164,16 +170,27 @@ const useLocalMongo = (
   ): Promise<any> => {
     if (!_id.match(/^[a-z|0-9]{24}$/))
       return Promise.reject('Invalid document _id')
+
+    const updateToLS = (oldDoc: Doc, newDoc: Doc) => {
+      if (options.timestamps === true) {
+        newDoc.updatedAt = new Date().toISOString()
+        newDoc.createdAt = oldDoc.createdAt
+      }
+      newDoc._id = oldDoc._id
+      setLS(documents.map((v: Doc) => (v._id !== _id ? v : newDoc)))
+      return newDoc
+    }
+
     const oldDoc: Doc = documents.find((v: Doc) => v._id === _id)
     const updated: Doc = cb(oldDoc)
+    if (isSchemaLess()) {
+      const filtered = updateToLS(oldDoc, updated)
+      return Promise.resolve(filtered)
+    }
     return validate(updated)
       .then((filtered: Doc) => {
         const newDoc = { ...filtered, _id }
-        if (options.timestamps === true) {
-          newDoc.updatedAt = new Date().toISOString()
-          newDoc.createdAt = oldDoc.createdAt
-        }
-        setLS(documents.map((v: Doc) => (v._id !== _id ? v : newDoc)))
+        updateToLS(oldDoc, newDoc)
         return Promise.resolve(newDoc)
       })
       .catch((err) => Promise.reject(`\nStore: '${storeName}'\n${err}`))
