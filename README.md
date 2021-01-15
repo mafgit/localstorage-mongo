@@ -1,18 +1,17 @@
 
 # localstorage-mongo
 
-> A React Library for interacting with LocalStorage using functions and methods like those provided by Mongoose.
+> A React Library to allow you to use LocalStorage like MongoDB.
 
 [![NPM](https://img.shields.io/npm/v/localstorage-mongo.svg)](https://www.npmjs.com/package/localstorage-mongo)
 [![NPM](https://img.shields.io/npm/dt/localstorage-mongo)]()
 [![NPM License](https://img.shields.io/npm/l/all-contributors.svg?style=flat)](https://github.com/tterb/hyde/blob/master/LICENSE)
 
-## What's New in `v1.1.0` ?
-- `Model.value` has changed to `Model.docs`
-- Now you can make schema-less models as well.
-- added `unique` validation option to schemas
-- added `enum` validation option to schemas
-
+## What's New in `v1.2.0` ?
+- Third parameter added to useLocalMongo, `options`,
+- You can now control the generation of `timestamps` and `id` of a document.
+- Bug fixes
+  
 ## Installation
 
 ```bash
@@ -20,58 +19,90 @@ npm install --save localstorage-mongo
 ```
 
 Then import it in your react file like:
-```js
+```ts
 import useLocalMongo from 'localstorage-mongo'
 ```
 
-## Creating a model using `useLocalMongo(storeName: string, schema = {})`
+## Creating a model
+### `useLocalStorage(storeName, [schema], [options]])`
+```ts
+// Schema-less model
+const Book = useLocalStorage('books')
 
-```js
-const User = useLocalMongo('users', {
+// Providing schema and options
+const userSchema = {
   name: { type: 'String', required: true },
   age:  { type: 'Number', default: 18 },
-  tags: { type: 'Array', default: [] },
-})
+  hobbies: { type: 'Array', default: ['football', 'cricket'] },
+}
+
+const userOptions = {
+  timestamps: true // allows the creation of createdAt and updatedAt fields.
+}
+
+const User = useLocalMongo('users', schema, options)
 ```
 
-In this example, we are creating a model for a user. We have created three properties, name, age and tags, and their types must be in quotes, unlike in mongoose. We can make a property required, or set a default value for it.
+**NOTE**: Types must be provided as a string, unlike in mongoose. 
 
-## Accessing the store by `Model.docs`
-```js
+You can make a property required or set a default value for it. There are a few other validation options:
+
+#### Schema - Validations for properties
+- `type`: the type of the property's value, must be provided as a string such as "Boolean"
+- `enum`: can be provided for a property with type string, it checks whether the value is in the array provided. Example: `{ status: { enum: ['pending', 'delivered'] } }`
+- `unique`: can be provided for a property to ensure that it stays unique through out the store.
+- `required`: to ensure that the value must be provided for a property.
+- `default`: this is a fallback value for the property that is not provided.
+<!-- TODO: Add More Validations -->
+
+#### Options
+- `timestamps` set to `false` as default, is a boolean which must be set to true if you want the createdAt and updatedAt properties.
+- `id` is a boolean which must be set to `false` if you don't want to generate ids.
+
+## Accessing the store
+### `Model.docs`
+```ts
 User.docs // [{...}, {...}]
 ```
 
-## Creating a new document using `Model.create(document)`
-```js
+## Creating a new document
+#### `Model.create(document)`
+```ts
 User.create({ name: 'maf' })
-.then(user => console.log(user))
-.catch(err => console.error(err))
+  .then(user => console.log(user))
+  .catch(err => console.error(err))
 ```
 
-## Updating a document using `Model.findByIdAndUpdate(_id: string)`
-```js
-const _id = '05533684729679925'
+## Updating a document
+### `Model.findByIdAndUpdate(_id, callback)`
+```ts
+const _id = 'bca4ed840c2c2bf674eccc3c'
 User.findByIdAndUpdate(_id, (user) => {
   return {
-    ...user,
-    name: 'Abdullah'
+    ...user, // don't spread the previous document if you wanna replace instead
+    name: 'New Name'
   }
 })
-.then(user => console.log(user))
-.catch(err => console.log(err))
+  .then(user => console.log(user))
+  .catch(err => console.log(err))
 ```
 You can access the document in the callback function, and return the updated document in the callback.
 
-## Deleting a document using `Model.findByIdAndDelete(_id: string)`
-```js
+Don't spread the previous document, inside callback, if you want to replace it instead of updating, validations would still apply.
+
+
+## Deleting a document
+### `Model.findByIdAndDelete(_id)`
+```ts
 User.findByIdAndDelete(_id)
 .then(() => console.log('Deleted'))
 .catch(err => console.log('Could not delete the document'))
 ```
 
-## Setting dangerously using `Model.setDangerously`
-```js
-User.setDangerously("users' array got set to this string now")
+## Setting dangerously 
+### `Model.setDangerously(newValue)`
+```ts
+User.setDangerously("The array of users got set to this string now")
 ```
 
 ## License
