@@ -99,12 +99,6 @@ User.findByIdAndDelete(_id)
 .catch(err => console.log('Could not delete the document'))
 ```
 
-## Setting dangerously 
-### `Model.setDangerously(newValue)`
-```ts
-User.setDangerously("The array of users got set to this string now")
-```
-
 ## License
 
 MIT © [mafgit](https://github.com/mafgit)
