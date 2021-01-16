@@ -6,7 +6,6 @@
     "moduleResolution": "node",
     "noResolve": false,
     "noImplicitAny": false,
-    "watch": true,
     "sourceMap": true,
     "allowJs": true,
     "jsx": "react",

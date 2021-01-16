@@ -1,11 +1,15 @@
+<div align="center">
+<img src="https://repository-images.githubusercontent.com/328192305/6a9dcf80-540c-11eb-9531-d9a1ad35bc79" width="500"/>
 
 # localstorage-mongo
 
-> A React Library to allow you to use LocalStorage like MongoDB.
+A React Library to allow you to use LocalStorage like MongoDB.
 
 [![NPM](https://img.shields.io/npm/v/localstorage-mongo.svg)](https://www.npmjs.com/package/localstorage-mongo)
 [![NPM](https://img.shields.io/npm/dt/localstorage-mongo)]()
 [![NPM License](https://img.shields.io/npm/l/all-contributors.svg?style=flat)](https://github.com/tterb/hyde/blob/master/LICENSE)
+
+</div>
 
 ## What's New in `v1.2.0` ?
 - Third parameter added to useLocalMongo, `options`,
