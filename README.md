@@ -28,10 +28,10 @@ import useLocalMongo from 'localstorage-mongo'
 ```
 
 ## Creating a model
-### `useLocalStorage(storeName, [schema], [options]])`
+### `useLocalMongo(storeName, [schema], [options]])`
 ```ts
 // Schema-less model
-const Book = useLocalStorage('books')
+const Book = useLocalMongo('books')
 
 // Providing schema and options
 const userSchema = {
