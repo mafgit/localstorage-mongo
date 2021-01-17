@@ -1,6 +1,6 @@
 {
   "name": "localstorage-mongo",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A React Library to allow you to use LocalStorage like MongoDB.",
   "main": "./dist/",
   "scripts": {
