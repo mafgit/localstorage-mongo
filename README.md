@@ -11,7 +11,7 @@ A React Library to allow you to use LocalStorage like MongoDB.
 
 </div>
 
-## What's New in `v1.2.0` ?
+## What's New in `v1.2` ?
 - Third parameter added to useLocalMongo, `options`,
 - You can now control the generation of `timestamps` and `id` of a document.
 - Bug fixes
@@ -60,8 +60,8 @@ You can make a property required or set a default value for it. There are a few 
 <!-- TODO: Add More Validations -->
 
 #### Options
-- `timestamps` set to `false` as default, is a boolean which must be set to true if you want the createdAt and updatedAt properties.
-- `id` is a boolean which must be set to `false` if you don't want to generate ids.
+- `timestamps`: set to `false` as default, is a boolean which must be set to true if you want the createdAt and updatedAt properties.
+- `id`: is a boolean which must be set to `false` if you don't want to generate ids.
 
 ## Accessing the store
 ### `Model.docs`
